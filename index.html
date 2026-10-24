@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#10172a">
+<title>Speed Post Live Tracker</title>
+<style>
+:root{color-scheme:light dark;--bg:#f3f5f9;--surface:#fff;--ink:#13204a;--muted:#5a6482;--line:#d9deea;--accent:#d4001a;--green:#12805c;--shadow:0 12px 32px rgba(19,32,74,.07)}
+@media(prefers-color-scheme:dark){:root{--bg:#0e1424;--surface:#161e34;--ink:#e8ecf7;--muted:#9aa5c4;--line:#2a3558;--accent:#ff5468;--green:#4cd6a0;--shadow:0 12px 32px rgba(0,0,0,.18)}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:24px 16px 48px}
+.wrap{max-width:1080px;margin:auto}.top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:22px}.brand{display:flex;align-items:center;gap:12px}.logo{width:46px;height:46px;display:grid;place-items:center;background:var(--accent);color:#fff;border-radius:14px;font-size:23px;box-shadow:var(--shadow)}h1{font-size:clamp(23px,4vw,32px);line-height:1.15;margin:0}.subtitle{color:var(--muted);margin:5px 0 0;font-size:13px}.pill{border:1px solid var(--line);padding:8px 12px;border-radius:99px;font-size:12px;color:var(--muted)}
+.notice{border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:14px 16px;margin-bottom:18px;color:var(--muted);font-size:13px}.meta{color:var(--muted);font-size:13px;margin:0 0 14px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,235px),1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:17px;text-align:left;cursor:pointer;color:inherit;min-width:0;box-shadow:var(--shadow);transition:transform .15s,border-color .15s}.card:hover{transform:translateY(-2px)}.card.selected{border:2px solid var(--accent);padding:16px}.division{font-size:20px;font-weight:750;letter-spacing:.2px}.who{color:var(--muted);font-size:12px;min-height:36px;margin-top:3px}.number{font:600 13px ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere;margin-top:11px}.status{display:inline-block;margin:10px 0 8px;padding:4px 10px;border-radius:99px;background:#fff0d0;color:#8b5900;font-size:11px;font-weight:750}.status.Delivered{background:#ddf3ea;color:#12805c}.status.Error,.status.Exception{background:#fde8eb;color:#c90020}.status.InTransit,.status.PickedUp,.status.OutForDelivery{background:#dfeaff;color:#1b54b8}.latest{color:var(--muted);font-size:12px;min-height:37px}.panel{margin-top:18px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:var(--shadow)}.panelhead{display:flex;justify-content:space-between;gap:12px;align-items:start;flex-wrap:wrap}.panel h2{font-size:19px;margin:0}.panel .sub{font-size:12px;color:var(--muted);margin-top:4px}.events{list-style:none;padding:0;margin:18px 0 4px}.events li{border-left:2px solid var(--line);padding:0 0 18px 17px;margin-left:5px;position:relative}.events li:last-child{padding-bottom:0}.events li:before{content:"";position:absolute;left:-6px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--line)}.events li:first-child:before{background:var(--accent)}.events b{display:block;font-size:14px}.muted{color:var(--muted);font-size:12px}.links{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}.btn{display:inline-block;border:1px solid var(--line);border-radius:9px;padding:9px 13px;text-decoration:none;color:var(--ink);font-size:13px;font-weight:650}.btn.primary{background:var(--accent);border-color:var(--accent);color:white}.error{color:var(--accent)}footer{margin-top:22px;text-align:center;color:var(--muted);font-size:12px}.loading{opacity:.7}.refresh{border:1px solid var(--line);border-radius:9px;background:var(--surface);padding:9px 12px;color:var(--ink);font:inherit;font-size:12px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><div class="logo" aria-hidden="true">📦</div><div><h1>Speed Post Live Tracker</h1><p class="subtitle">Track article updates in one place</p></div></div>
+    <div class="pill">● Auto-refresh every 60 seconds</div>
+  </header>
+  <div class="notice">Live scans are supplied by 17TRACK. New articles may show “Waiting for first scan” until the carrier publishes tracking events.</div>
+  <p class="meta" id="meta" aria-live="polite">Loading live status…</p>
+  <section class="grid" id="cards" aria-label="Tracked articles"></section>
+  <section class="panel" id="panel" aria-live="polite"><p class="muted">Loading tracking history…</p></section>
+  <footer>Tracking data may be delayed or unavailable depending on carrier updates and API service.</footer>
+</div>
+<script>
+let data=null, selected='sed', busy=false;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const when=t=>{if(!t)return 'Time not provided';const d=new Date(t);return isNaN(d)?esc(t):d.toLocaleString('en-IN',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true,timeZone:'Asia/Kolkata'})+' IST'};
+function label(a){if(a.pending)return 'Waiting for first scan';return String(a.status||'Unknown').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/([A-Z])([A-Z][a-z])/g,'$1 $2')}
+function draw(){
+ if(!data)return;
+ const meta=document.getElementById('meta');
+ meta.textContent='Last updated '+when(data.updated)+(data.error?' · API error: '+data.error:'');
+ document.getElementById('cards').innerHTML=(data.articles||[]).map(a=>`<button type="button" class="card ${a.id===selected?'selected':''}" data-id="${esc(a.id)}"><div class="division">${esc(a.div)}${a.block?' · '+esc(a.block):''}</div><div class="who">${esc(a.who)}</div><div class="number">${esc(a.no)}</div><span class="status ${esc(a.status)}">${esc(label(a))}</span><div class="latest">${a.latest?esc(a.latest.description||a.latest.text||'Latest update')+'<br>'+when(a.latest.time_iso||a.latest.time):'No scan event available yet'}</div></button>`).join('');
+ document.querySelectorAll('.card').forEach(el=>el.addEventListener('click',()=>{selected=el.dataset.id;draw()}));
+ const a=(data.articles||[]).find(x=>x.id===selected)||(data.articles||[])[0];
+ if(!a){document.getElementById('panel').innerHTML='<p>No tracking records returned.</p>';return}
+ const events=Array.isArray(a.events)?a.events:[];
+ document.getElementById('panel').innerHTML=`<div class="panelhead"><div><h2>${esc(a.div)} · ${esc(a.no)}</h2><div class="sub">${esc(a.who)}${a.block?' · '+esc(a.block):''}</div></div><span class="status ${esc(a.status)}">${esc(label(a))}</span></div><ul class="events">${events.length?events.map(e=>`<li><b>${esc(e.text||e.description||'Tracking update')}</b><span class="muted">${when(e.time)}${e.place?' · '+esc(e.place):''}</span></li>`).join(''):'<li><b>No scan events published yet</b><span class="muted">Check again later or use an official tracking site.</span></li>'}</ul><div class="links"><a class="btn primary" target="_blank" rel="noopener noreferrer" href="https://www.indiapost.gov.in/_layouts/15/dop.portal.tracking/trackconsignment.aspx">Track on India Post ↗</a><a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.17track.net/en/track?nums=${encodeURIComponent(a.no)}">Track on 17TRACK ↗</a><button class="refresh" id="refresh" type="button">↻ Refresh now</button></div>`;
+ document.getElementById('refresh').addEventListener('click',load);
+}
+async function load(){
+ if(busy)return;busy=true;document.getElementById('meta').classList.add('loading');
+ try{const r=await fetch('/api/track',{headers:{'Accept':'application/json'}});const body=await r.json();if(!r.ok&&!body.articles)throw new Error(body.error||('HTTP '+r.status));data=body;draw()}
+ catch(e){document.getElementById('meta').innerHTML='<span class="error">Could not load tracking data: '+esc(e.message)+'. Check deployment logs and TRACK17_KEY.</span>'}
+ finally{busy=false;document.getElementById('meta').classList.remove('loading')}
+}
+load();setInterval(load,60000);
+</script>
+</body>
+</html>
